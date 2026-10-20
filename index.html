@@ -42,7 +42,7 @@
   .footer { margin-top: 1.5mm; text-align: right; font-size: 12pt; line-height: 1.4; color: #333; }
 
   .year { width: 62%; margin: 0 auto 0.8mm; page-break-inside: avoid; }
-  /* 双列排版：左3右2，学年从左往右、从上到下（最新在前） */
+  /* 双列排版：学年从左到右、从上到下依次（最新在左上） */
   .cols { display: flex; gap: 5mm; align-items: flex-start; }
   .col { flex: 1; min-width: 0; display: flex; flex-direction: column; }
   .mode-2col { --row-h: 9mm; }
@@ -456,12 +456,13 @@ function renderTeacher(teacher) {
     if (shown === 0) { missing.push(name); continue; }
     okNames.push(name);
     pageShown.push(shown);
-    // 双列排版：左列 ceil(n/2) 个（最新学年在上），右列其余；最新学年始终在左上
+    // 双列排版：从左到右、从上到下依次排列（最新学年在左上）；奇偶分列实现行优先
     let body;
     if (layoutMode === '2col' && blocks.length > 1) {
-      const left = Math.ceil(blocks.length / 2);
-      body = '<div class="cols"><div class="col">' + blocks.slice(0, left).join('') + '</div>' +
-             '<div class="col">' + blocks.slice(left).join('') + '</div></div>';
+      const leftBlocks = blocks.filter((b, i) => i % 2 === 0);
+      const rightBlocks = blocks.filter((b, i) => i % 2 === 1);
+      body = '<div class="cols"><div class="col">' + leftBlocks.join('') + '</div>' +
+             '<div class="col">' + rightBlocks.join('') + '</div></div>';
     } else {
       body = blocks.join('');
     }
