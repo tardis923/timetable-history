@@ -291,6 +291,52 @@ function parseSheet(rows) {
 const allData = {};   // yearLabel -> parsed
 const teacherSet = new Set();
 
+/* 教师名单下拉：从已加载数据中提取姓名（去重、中文排序），填充 datalist */
+function buildTeacherList() {
+  const dl = document.getElementById('teacherList');
+  dl.innerHTML = '';
+  const sortedTeachers = Array.from(teacherSet).sort((a, b) => a.localeCompare(b, 'zh'));
+  for (const t of sortedTeachers) {
+    const opt = document.createElement('option');
+    opt.value = t;
+    dl.appendChild(opt);
+  }
+  return sortedTeachers;
+}
+
+/* 记住上次使用的课表数据：缓存解析结果到 localStorage（重新选文件夹即刷新覆盖） */
+function saveCache() {
+  try {
+    const pack = { savedAt: Date.now(), allData: {}, teachers: Array.from(teacherSet) };
+    for (const k of Object.keys(allData)) pack.allData[k] = allData[k];
+    localStorage.setItem('ttCache', JSON.stringify(pack));
+  } catch (e) { /* 空间不足等异常不影响正常使用 */ }
+}
+
+/* 页面打开时恢复上次使用的课表数据；返回是否成功恢复 */
+function restoreCache() {
+  try {
+    const raw = localStorage.getItem('ttCache');
+    if (!raw) return false;
+    const pack = JSON.parse(raw);
+    if (!pack.allData || !Object.keys(pack.allData).length) return false;
+    for (const k of Object.keys(allData)) delete allData[k];
+    for (const k of Object.keys(pack.allData)) allData[k] = pack.allData[k];
+    teacherSet.clear();
+    for (const t of pack.teachers || []) teacherSet.add(t);
+    const years = sortedYears();
+    selectedYears = new Set(years.slice(0, 5));
+    buildYearBar(years);
+    buildTeacherList();
+    const d = new Date(pack.savedAt);
+    const p2 = n => (n < 10 ? '0' + n : '' + n);
+    setStatus('教师个人课表查询 V3 · 已自动恢复上次使用的 ' + years.length + ' 个学年课表（保存于 ' +
+      d.getFullYear() + '-' + p2(d.getMonth() + 1) + '-' + p2(d.getDate()) + ' ' +
+      p2(d.getHours()) + ':' + p2(d.getMinutes()) + '）。如需更新，请重新选择课程表文件夹。');
+    return true;
+  } catch (e) { return false; }
+}
+
 function yearFromName(fn) {
   const m = fn.match(/(20\d{2})\s*[-–—~至]\s*(\d{2,4})/);
   return m ? parseInt(m[1], 10) : 0;
@@ -340,17 +386,11 @@ function loadFolder(files) {
     // 默认显示最近 5 个学年（超过 5 个时其余需手动勾选）
     selectedYears = new Set(years.slice(0, 5));
     buildYearBar(years);
-    const dl = document.getElementById('teacherList');
-    dl.innerHTML = '';
-    const sortedTeachers = Array.from(teacherSet).sort((a, b) => a.localeCompare(b, 'zh'));
-    for (const t of sortedTeachers) {
-      const opt = document.createElement('option');
-      opt.value = t;
-      dl.appendChild(opt);
-    }
+    const sortedTeachers = buildTeacherList();
     setStatus('已加载 ' + years.length + ' 个学年：' + years.map(y => allData[y].label + '学年').join('、') +
               '。教师名单 ' + sortedTeachers.length + ' 人，请输入教师姓名后点击「生成课表」。' +
               (years.length > 5 ? '（默认显示最近 5 个学年，可在「学年」区勾选调整）' : ''));
+    saveCache(); // 记住本次加载的数据，下次打开自动恢复
   }).catch(err => {
     setStatus('解析出错：' + err.message + '。请确认选择的是包含总课表 .xls 文件的文件夹。', true);
   });
@@ -642,6 +682,9 @@ document.getElementById('teacherInput').addEventListener('keydown', e => {
   if (e.key === 'Enter') doGenerate();
 });
 document.getElementById('printBtn').addEventListener('click', () => window.print());
+
+// 打开页面时自动恢复上次使用的课表数据（记住文件夹）
+restoreCache();
 </script>
 </body>
 </html>
